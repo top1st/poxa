@@ -1,37 +1,32 @@
 defmodule Poxa.AuthorizarionHelperTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   alias Poxa.Authentication
-  import :meck
+  use Mimic
   import Poxa.AuthorizationHelper
 
   setup do
-    new Authentication
-    new :cowboy_req
-    on_exit fn -> unload() end
+    stub(Authentication)
+    stub(:cowboy_req)
     :ok
   end
 
   test "is_authorized returns true if Authentication is ok" do
-    expect(:cowboy_req, :body, 1, {:ok, :body, :req1})
-    expect(:cowboy_req, :method, 1, {:method, :req2})
-    expect(:cowboy_req, :qs_vals, 1, {:qs_vals, :req3})
-    expect(:cowboy_req, :path, 1, {:path, :req4})
-    expect(Authentication, :check, 4, true)
-    assert is_authorized(:req, :state) == {true, :req4, :state}
-    assert validate(Authentication)
-    assert validate(:cowboy_req)
+    expect(:cowboy_req, :read_body, fn :req -> {:ok, :body, :req1} end)
+    expect(:cowboy_req, :method, fn :req1 -> :method end)
+    expect(:cowboy_req, :parse_qs, fn :req1 -> :qs_vals end)
+    expect(:cowboy_req, :path, fn :req1 -> :path end)
+    expect(Authentication, :check, fn _, _, _, _ -> true end)
+
+    assert is_authorized(:req, :state) == {true, :req1, :state}
   end
 
   test "is_authorized returns false if Authentication is not ok" do
-    expect(:cowboy_req, :body, 1, {:ok, :body, :req1})
-    expect(:cowboy_req, :method, 1, {:method, :req2})
-    expect(:cowboy_req, :qs_vals, 1, {:qs_vals, :req3})
-    expect(:cowboy_req, :path, 1, {:path, :req4})
-    expect(Authentication, :check, 4, false)
-    assert is_authorized(:req, :state) == {{false, "authentication failed"}, :req4, nil}
-    assert validate(Authentication)
-    assert validate(:cowboy_req)
+    expect(:cowboy_req, :read_body, fn :req -> {:ok, :body, :req1} end)
+    expect(:cowboy_req, :method, fn :req1 -> :method end)
+    expect(:cowboy_req, :parse_qs, fn :req1 -> :qs_vals end)
+    expect(:cowboy_req, :path, fn :req1 -> :path end)
+    expect(Authentication, :check, fn _, _, _, _ -> false end)
+
+    assert is_authorized(:req, :state) == {{false, "authentication failed"}, :req1, nil}
   end
-
 end
-

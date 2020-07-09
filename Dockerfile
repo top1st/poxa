@@ -1,19 +1,38 @@
-FROM elixir:1.5.2-alpine
+# Based on https://github.com/hexpm/hexpm/blob/08e80ed4fe82b145f6cee1d01da16e162add2a56/Dockerfile
+FROM elixir:1.9.0-alpine as build
 
-ENV APP_NAME poxa
-ENV MIX_ENV prod
+ENV MIX_ENV=prod
 
-RUN apk --update add bash git erlang-xmerl erlang-crypto erlang-sasl && rm -rf /var/cache/apk/*
-
-COPY . /source
-WORKDIR /source
+RUN mkdir /app
+WORKDIR /app
 
 RUN mix local.hex --force && mix local.rebar --force
+
+# install mix dependencies
+COPY mix.exs mix.lock ./
+COPY config config
 RUN mix deps.get
+RUN mix deps.compile
+
+# build project
+COPY priv priv
+COPY lib lib
 RUN mix compile
-RUN echo "" > config/poxa.prod.conf
+
+# build release
+COPY rel rel
 RUN mix release
 
-RUN mkdir /app && cp -r _build/prod/rel/$APP_NAME /app && rm -rf /source
+# prepare release image
+FROM alpine:3.9 AS app
+RUN apk add --update bash openssl
 
-CMD /app/$APP_NAME/bin/$APP_NAME foreground
+RUN mkdir /app
+WORKDIR /app
+
+COPY --from=build /app/_build/prod/rel/poxa ./
+RUN chown -R nobody: /app
+USER nobody
+
+ENV HOME=/app
+CMD /app/bin/poxa start

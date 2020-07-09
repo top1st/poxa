@@ -1,50 +1,37 @@
 defmodule Poxa.EventTest do
-  use ExUnit.Case
-  import :meck
+  use ExUnit.Case, async: true
+  use Mimic
   alias Poxa.Event
   alias Poxa.SocketId
 
   setup do
-    new SocketId
-    { :ok, _ } = GenEvent.start_link(name: Poxa.Event)
-    on_exit fn -> unload() end
+    stub(SocketId)
+    stub(:gproc)
     :ok
   end
 
-  defmodule TestHandler do
-    use GenEvent
-
-    def handle_event(%{event: :failed_handling}, _pid) do
-      :error
-    end
-
-    def handle_event(event_data, pid) do
-      send pid, event_data
-      {:ok, pid}
+  describe "subscribe/0" do
+    test "register for internal events" do
+      expect(:gproc, :reg, fn {:p, :l, :internal_event} -> :ok end)
+      Event.subscribe()
     end
   end
 
-  test "notifies handler with a socket_id" do
-    :ok = Event.add_handler({TestHandler, self()}, self())
-    :ok = Event.notify(:successful_handling, %{socket_id: :socket_id, data: :map})
-    assert_receive %{event: :successful_handling,
-                     data: :map,
-                     socket_id: :socket_id}
-  end
+  describe "notify/2" do
+    test "notifies handler with a socket_id" do
+      event = %{event: :successful_handling, data: :map, socket_id: :socket_id}
+      expect(:gproc, :send, fn {:p, :l, :internal_event}, {:internal_event, ^event} -> :ok end)
 
-  test "notifies handler without a socket_id" do
-    :ok = Event.add_handler({TestHandler, self()}, self())
+      :ok = Event.notify(:successful_handling, %{socket_id: :socket_id, data: :map})
+    end
 
-    expect(SocketId, :mine, 0, :socket_id)
+    test "notifies handler without a socket_id" do
+      expect(SocketId, :mine, fn -> :socket_id end)
 
-    :ok = Event.notify(:successful_handling, %{data: :map})
-    assert_receive %{event: :successful_handling, data: :map, socket_id: :socket_id}
-    assert validate(SocketId)
-  end
+      event = %{event: :successful_handling, data: :map, socket_id: :socket_id}
+      expect(:gproc, :send, fn {:p, :l, :internal_event}, {:internal_event, ^event} -> :ok end)
 
-  test "handler failures are notified" do
-    :ok = Event.add_handler({TestHandler, self()}, self())
-    :ok = Event.notify(:failed_handling, %{socket_id: :socket_id})
-    assert_receive {:gen_event_EXIT, _, _}
+      :ok = Event.notify(:successful_handling, %{data: :map})
+    end
   end
 end

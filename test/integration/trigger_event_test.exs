@@ -5,25 +5,48 @@ defmodule Poxa.Integration.TriggerEvent do
 
   setup_all do
     Application.ensure_all_started(:pusher)
-    Pusher.configure!("localhost", 8080, "app_id", "app_key", "secret")
     :ok
   end
 
-  test "trigger event returns 200" do
+  setup do
+    client = %Pusher.Client{
+      endpoint: "localhost:8080",
+      app_id: "app_id",
+      app_key: "app_key",
+      secret: "secret"
+    }
+
+    {:ok, client: client}
+  end
+
+  test "trigger event returns 200", %{client: client} do
     [channel, socket_id] = ["channel", "123.456"]
 
-    assert Pusher.trigger("test_event", %{}, channel, socket_id) == :ok
+    assert Pusher.trigger(client, "test_event", %{}, channel, socket_id) == :ok
   end
 
-  test "trigger event returns 400 on invalid channel" do
+  test "trigger event returns 400 on invalid channel", %{client: client} do
     [channel, socket_id] = ["channel:invalid", "123.456"]
 
-    assert Pusher.trigger("test_event", %{}, channel, socket_id) == :error
+    assert {:error, _} = Pusher.trigger(client, "test_event", %{}, channel, socket_id)
   end
 
-  test "trigger event returns 400 on invalid socket_id" do
+  test "trigger event returns 400 on invalid socket_id", %{client: client} do
     [channel, socket_id] = ["channel", "123456"]
 
-    assert Pusher.trigger("test_event", %{}, channel, socket_id) == :error
+    assert {:error, _} = Pusher.trigger(client, "test_event", %{}, channel, socket_id)
+  end
+
+  test "trigger event returns 401 on invalid authentication" do
+    [channel, socket_id] = ["channel", "123.456"]
+
+    client = %Pusher.Client{
+      endpoint: "localhost:8080",
+      app_id: "app_id",
+      app_key: "app_key",
+      secret: "wrong_secret"
+    }
+
+    assert {:error, _} = Pusher.trigger(client, "test_event", %{}, channel, socket_id)
   end
 end
